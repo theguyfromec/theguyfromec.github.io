@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Processing: Sales Lifecycle Swim-Lane Diagram</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --surface: #1a2028;
+    --border: #2a3440;
+    --text: #e1e8ed;
+    --text-dim: #8899a6;
+    --sales: #4A90D9;
+    --pandadoc: #7B68EE;
+    --hubspot: #FF7A59;
+    --maxio: #2ECC71;
+    --qbo: #1ABC9C;
+    --freshdesk: #F39C12;
+    --trial: #9B59B6;
+    --gap: #E74C3C;
+    --arrow: #556677;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: auto;
+    padding: 24px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .diagram-scroll {
+    overflow-x: auto;
+    padding-bottom: 16px;
+  }
+  .diagram {
+    display: grid;
+    grid-template-columns: 140px repeat(8, 220px);
+    grid-template-rows: auto;
+    gap: 0;
+    min-width: 1920px;
+  }
+  /* Stage headers */
+  .stage-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .stage-header .stage-num {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .lane-label {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 8px;
+    font-weight: 600;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: horizontal-tb;
+    text-align: center;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .lane-label .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    display: inline-block;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+  .cell {
+    border: 1px solid var(--border);
+    padding: 8px;
+    min-height: 80px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+  }
+  .cell:hover {
+    background: rgba(255,255,255,0.02);
+  }
+  .node {
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: center;
+    width: 100%;
+    max-width: 196px;
+    cursor: default;
+    transition: transform 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+  .node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 10;
+  }
+  .node.sales { background: var(--sales); color: #fff; }
+  .node.pandadoc { background: var(--pandadoc); color: #fff; }
+  .node.hubspot { background: var(--hubspot); color: #fff; }
+  .node.maxio { background: var(--maxio); color: #fff; }
+  .node.qbo { background: var(--qbo); color: #fff; }
+  .node.freshdesk { background: var(--freshdesk); color: #fff; }
+  .node.trial { background: var(--trial); color: #fff; }
+  .node.gap {
+    background: transparent;
+    border: 2px dashed var(--gap);
+    color: var(--gap);
+    font-weight: 600;
+    font-size: 10px;
+  }
+  .node .tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a2028;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+    width: 240px;
+    text-align: left;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    font-weight: 400;
+    pointer-events: none;
+  }
+  .node:hover .tooltip { display: block; }
+  .empty-cell {
+    border: 1px solid var(--border);
+    min-height: 80px;
+  }
+  /* Arrow connectors between stages */
+  .flow-arrow {
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--arrow);
+    font-size: 16px;
+    z-index: 5;
+  }
+  /* Corner label */
+  .corner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 600;
+    position: sticky;
+    left: 0;
+    z-index: 3;
+  }
+  .gap-summary {
+    margin-top: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    max-width: 900px;
+  }
+  .gap-summary h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    color: var(--gap);
+  }
+  .gap-summary table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .gap-summary th {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .gap-summary td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .gap-summary td:first-child {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .gap-badge {
+    display: inline-block;
+    background: rgba(231,76,60,0.15);
+    color: var(--gap);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .footer {
+    margin-top: 24px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<h1>Order Processing: Sales Lifecycle Swim-Lane Diagram</h1>
+<p class="subtitle">SnapStream Media &mdash; 8-stage lifecycle across 7 systems &mdash; Updated 2026-05-13</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--sales)"></div> Sales / CS</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--pandadoc)"></div> PandaDoc</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--hubspot)"></div> HubSpot</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--maxio)"></div> Maxio</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--qbo)"></div> QuickBooks Online</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--freshdesk)"></div> Freshdesk</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--trial)"></div> Trial Server</div>
+  <div class="legend-item"><div class="legend-dot" style="background:transparent;border:2px dashed var(--gap)"></div> Gap / Risk</div>
+</div>
+
+<div class="diagram-scroll">
+<div class="diagram">
+
+  <!-- Row 0: Stage Headers -->
+  <div class="corner">SYSTEM /<br>STAGE &rarr;</div>
+  <div class="stage-header"><span class="stage-num">Stage 1</span>Lead Gen</div>
+  <div class="stage-header"><span class="stage-num">Stage 2</span>Trial / POC</div>
+  <div class="stage-header"><span class="stage-num">Stage 3</span>Quoting</div>
+  <div class="stage-header"><span class="stage-num">Stage 4</span>Deal Close</div>
+  <div class="stage-header"><span class="stage-num">Stage 5</span>Billing Sync</div>
+  <div class="stage-header"><span class="stage-num">Stage 6</span>Onboarding</div>
+  <div class="stage-header"><span class="stage-num">Stage 7</span>Renewal</div>
+  <div class="stage-header"><span class="stage-num">Stage 8</span>Churn</div>
+
+  <!-- Row 1: Sales / CS -->
+  <div class="lane-label"><div class="dot" style="background:var(--sales)"></div>Sales / CS</div>
+  <div class="cell">
+    <div class="node sales">
+      Inbound / outbound lead
+      <div class="tooltip">Leads from website, referrals, or Apollo IO + Claude outbound agent (Graham). SDR should create HubSpot record here.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node sales">
+      Request trial access for prospect
+      <div class="tooltip">Sales/CS requests access to trial.cloud.snapstream.com. Manual process, no automation.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node sales">
+      Sales initiates quote request
+      <div class="tooltip">Sales decides to quote. Triggers PandaDoc quote creation. Owner: Kyle T.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node sales">
+      Create deal, attach docs, add line items
+      <div class="tooltip">All manual. Deal created in HubSpot, PandaDoc copy attached, line items entered by hand. Order of operations not enforced.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node sales">
+      System install, training, go-live
+      <div class="tooltip">Equipment shipping, DirecTV setup, SnapStream install + config, product training, admin training. 0-30 day timeline.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node sales">
+      CSM reviews renewal, engages customer
+      <div class="tooltip">120-day workflow auto-assigns CSM task (due 3 days). CSM reviews, sends renewal comms. 60-day second checkpoint. Auto-renew at day 59 for standard renewals.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node sales">
+      Mark customer churned
+      <div class="tooltip">Sales/CS marks customer as churned in HubSpot. Triggers email and Freshdesk ticket to Daryl.</div>
+    </div>
+  </div>
+
+  <!-- Row 2: PandaDoc -->
+  <div class="lane-label"><div class="dot" style="background:var(--pandadoc)"></div>PandaDoc</div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node pandadoc">
+      Create quote, send for e-signature
+      <div class="tooltip">Sales creates quote manually in PandaDoc. Sent to customer for e-signature. No templates documented. $5K/year cost.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node pandadoc">
+      Executed copy used as deal attachment
+      <div class="tooltip">Signed PandaDoc is manually attached to HubSpot deal record. No automated handoff.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node pandadoc">
+      Renewal quote (if needed)
+      <div class="tooltip">Some renewals require a new PandaDoc quote. Template reportedly missing (Jill, Jan 2026). Some renewals require customer PO instead.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+
+  <!-- Row 3: HubSpot -->
+  <div class="lane-label"><div class="dot" style="background:var(--hubspot)"></div>HubSpot</div>
+  <div class="cell">
+    <div class="node hubspot">
+      Contact record created
+      <div class="tooltip">Should be entry point. Sometimes created retroactively after PandaDoc quote. ~60K records, ~200 active, never cleaned.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node hubspot">
+      Track trial status
+      <div class="tooltip">Should track trial stage in HubSpot. No auto-provisioning (API deprecated). Commerce Hub blocked by Abby/Stripe.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node hubspot">
+      Closed Won workflow fires
+      <div class="tooltip">Workflow ID 4580384. Sends deal info to Freshdesk, posts to Slack "Sales Deal Updates". Syncs Product Type, ARR, Service End Date to company record.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node hubspot">
+      Line items sync to Maxio
+      <div class="tooltip">Limited connector (previous team, poorly set up, no current owner). Exact sync fields undocumented. $166K unprocessed orders in Maxio.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node hubspot">
+      HubSpot Projects: 13-task onboarding template
+      <div class="tooltip">Replacing GuideCX (Jill, March 2026). 0-30 day timeline. Tasks: kick-off, cloud setup, DirecTV, training, CSM transition. Purchase type "New" auto-creates; Expansion/SysReplace not wired yet.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node hubspot">
+      120-day renewal workflow auto-creates deal
+      <div class="tooltip">Triggers when Next Renewal Date &lt; 120 days. Auto-creates deal in "Existing Business" pipeline. Posts to Slack, emails deal owner. CRITICAL: Next Renewal Date is manual (SPOF).</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node hubspot">
+      Churn email trigger
+      <div class="tooltip">Customer marked churned triggers email to Freshdesk. No churn reason tracking. No vol/invol differentiation in workflow.</div>
+    </div>
+  </div>
+
+  <!-- Row 4: Maxio -->
+  <div class="lane-label"><div class="dot" style="background:var(--maxio)"></div>Maxio</div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node maxio">
+      Receive line items, invoice customer
+      <div class="tooltip">Receives synced line items from HubSpot. Accounting runs Invoice Green Light checklist via Freshdesk ticket. Hard constraint: line items + contract dates must be accurate.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node maxio">
+      Involuntary churn: 60+ days past due
+      <div class="tooltip">Collections escalation: 30d first notice, 45d second, 50d escalation, 60d suspension warning. High-value accounts (>$100K) get different treatment. Leads to suspension/termination.</div>
+    </div>
+  </div>
+
+  <!-- Row 5: QuickBooks Online -->
+  <div class="lane-label"><div class="dot" style="background:var(--qbo)"></div>QuickBooks Online</div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node qbo">
+      Daily sync from Maxio
+      <div class="tooltip">Invoices and payments sync daily. Known issues: multicurrency mismatch (QBO enabled, Maxio not), Piping Technology status conflict. Closing date 12/31/2025.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+
+  <!-- Row 6: Freshdesk -->
+  <div class="lane-label"><div class="dot" style="background:var(--freshdesk)"></div>Freshdesk</div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node freshdesk">
+      Onboarding ticket auto-assigned to Paco
+      <div class="tooltip">HubSpot Closed Won email creates Freshdesk ticket. Auto-assigned to Paco. Also triggers on renewal close.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node freshdesk">
+      Invoice Green Light ticket
+      <div class="tooltip">Accounting receives this ticket to trigger billing checklist. Created from HubSpot automation on deal close.</div>
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node freshdesk">
+      Onboarding ticket (Paco)
+      <div class="tooltip">Same trigger as Stage 4. Paco manages onboarding execution via Freshdesk ticket alongside HubSpot Projects.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node freshdesk">
+      Churn ticket auto-assigned to Daryl
+      <div class="tooltip">HubSpot churn email creates Freshdesk ticket for Daryl. Post-ticket steps undocumented. Kyle floated moving termination to Paco.</div>
+    </div>
+  </div>
+
+  <!-- Row 7: Trial Server -->
+  <div class="lane-label"><div class="dot" style="background:var(--trial)"></div>Trial Server</div>
+  <div class="empty-cell"></div>
+  <div class="cell">
+    <div class="node trial">
+      trial.cloud.snapstream.com
+      <div class="tooltip">Single shared instance. Users added manually. Purgatory group for inactive users (preserves stats). No tenant isolation. Future: paid trial via Commerce Hub.</div>
+    </div>
+  </div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+  <div class="empty-cell"></div>
+
+  <!-- Row 8: Gaps -->
+  <div class="lane-label" style="color:var(--gap)"><div class="dot" style="background:var(--gap)"></div>Gaps / Risks</div>
+  <div class="cell">
+    <div class="node gap">
+      Record creation inconsistent; no standard intake
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      API deprecated; no auto-provisioning; Commerce Hub blocked
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      No PandaDoc &rarr; HubSpot trigger; no template standard
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      Manual deal/line items/attachment; order of ops not enforced
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      Connector limited; $166K backlog; Send Renewal Deals never run; QBO issues
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      GuideCX migration incomplete; Expansion/SysReplace not wired
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      Next Renewal Date is manual SPOF; PandaDoc template missing
+    </div>
+  </div>
+  <div class="cell">
+    <div class="node gap">
+      Post-ticket steps unknown; no churn reason tracking; no vol/invol split
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Gap Summary Table -->
+<div class="gap-summary">
+  <h2>Gap Summary by Stage</h2>
+  <table>
+    <thead>
+      <tr><th>Stage</th><th>Key Gaps</th><th>Blocked By</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1. Lead Gen</td>
+        <td>No standardized intake process. HubSpot record creation is inconsistent and sometimes retroactive.</td>
+        <td>Process definition needed</td>
+      </tr>
+      <tr>
+        <td>2. Trial / POC</td>
+        <td>HubSpot &rarr; Snapstream API deprecated. Commerce Hub + Stripe blocked. Single shared trial instance.</td>
+        <td><span class="gap-badge">BLOCKED</span> Abby (Stripe/Maxio), Engineering (API)</td>
+      </tr>
+      <tr>
+        <td>3. Quoting</td>
+        <td>No PandaDoc &rarr; HubSpot automation. No template standardization documented.</td>
+        <td>PandaDoc API integration (Phase 1 deliverable)</td>
+      </tr>
+      <tr>
+        <td>4. Deal Close</td>
+        <td>Manual deal creation, line items, document attachment. Order of operations varies by rep.</td>
+        <td>PandaDoc automation + process standardization</td>
+      </tr>
+      <tr>
+        <td>5. Billing Sync</td>
+        <td>Connector limited and undocumented. $166K unprocessed orders. Send Renewal Deals never activated. QBO multicurrency mismatch.</td>
+        <td>Connector audit (next step), Abby interview</td>
+      </tr>
+      <tr>
+        <td>6. Onboarding</td>
+        <td>GuideCX &rarr; HubSpot Projects migration incomplete. Expansion/System Replacement purchase types don't trigger onboarding.</td>
+        <td>Jill (migration owner, currently out)</td>
+      </tr>
+      <tr>
+        <td>7. Renewal</td>
+        <td>Next Renewal Date is manually maintained (single point of failure). PandaDoc renewal template reportedly missing. Health score model not yet operational.</td>
+        <td>Process enforcement, Jill/CS health score buildout</td>
+      </tr>
+      <tr>
+        <td>8. Churn</td>
+        <td>Post-ticket termination steps undocumented. No churn reason tracking. No vol/invol differentiation.</td>
+        <td>Daryl interview (what happens after ticket?)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="footer">
+  Order Processing: Sales Lifecycle Framework &bull; SnapStream Media &bull; Joshua Frazier &bull; 2026-05-13<br>
+  Source: Notion framework doc (35fb892d), Kyle/Graham/Semi-Weekly transcripts, 7 KB pages audited
+</div>
+
+</body>
+</html>
